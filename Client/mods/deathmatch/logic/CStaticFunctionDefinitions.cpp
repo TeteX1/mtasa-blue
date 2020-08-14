@@ -6934,44 +6934,65 @@ bool CStaticFunctionDefinitions::BindKey(const char* szKey, const char* szHitSta
     return bSuccess;
 }
 
-bool CStaticFunctionDefinitions::UnbindKey(const char* szKey, CLuaMain* pLuaMain, const char* szHitState, const CLuaFunctionRef& iLuaFunction)
+bool CStaticFunctionDefinitions::UnbindKey(const char* szKey, const char* szHitState, const char* szCommandName, const char* szResource)
 {
     assert(szKey);
-    assert(pLuaMain);
+    assert(szHitState);
 
-    CKeyBindsInterface*       pKeyBinds = g_pCore->GetKeyBinds();
-    const SBindableKey*       pKey = pKeyBinds->GetBindableFromKey(szKey);
-    const SScriptBindableKey* pScriptKey = NULL;
-    if (pKey)
-        pScriptKey = m_pScriptKeyBinds->GetBindableFromKey(szKey);
-    SBindableGTAControl*             pControl = pKeyBinds->GetBindableFromControl(szKey);
-    const SScriptBindableGTAControl* pScriptControl = NULL;
-    if (pControl)
-        pScriptControl = m_pScriptKeyBinds->GetBindableFromControl(szKey);
+    bool bSuccess = false;
 
-    bool bCheckHitState = false, bHitState = true;
-    if (szHitState)
+    CKeyBindsInterface* pKeyBinds = g_pCore->GetKeyBinds();
+    bool                bKey = pKeyBinds->IsKey(szKey);
+    CCommandBind*       pBind;
+
+    if (bKey)
     {
-        if (stricmp(szHitState, "down") == 0)
+        bool bCheckHitState = false, bHitState = true;
+
+        if (szHitState)
         {
-            bCheckHitState = true, bHitState = true;
+            if (stricmp(szHitState, "down") == 0)
+            {
+                bCheckHitState = true, bHitState = true;
+            }
+            else if (stricmp(szHitState, "up") == 0)
+            {
+                bCheckHitState = true, bHitState = false;
+            }
         }
-        else if (stricmp(szHitState, "up") == 0)
+
+
+        pBind = g_pCore->GetKeyBinds()->GetBindFromCommand(szCommandName, NULL, false, szKey, bCheckHitState, bHitState);
+
+        if ((!stricmp(szHitState, "down") || !stricmp(szHitState, "both")) &&
+            pKeyBinds->SetCommandActive(szKey, szCommandName, bHitState, NULL, szResource, false, true, true))
         {
-            bCheckHitState = true, bHitState = false;
+            pKeyBinds->SetAllCommandsActive(szResource, false, szCommandName, bHitState, NULL, true, szKey);
+
+            if (pBind)
+            {
+                pKeyBinds->Remove(pBind);
+            }
+
+            bSuccess = true;
+        }
+        bHitState = false;
+        if ((!stricmp(szHitState, "up") || !stricmp(szHitState, "both")) &&
+            pKeyBinds->SetCommandActive(szKey, szCommandName, bHitState, NULL, szResource, false, true, true))
+        {
+            pKeyBinds->SetAllCommandsActive(szResource, false, szCommandName, bHitState, NULL, true, szKey);
+
+            if (pBind)
+            {
+                pKeyBinds->Remove(pBind);
+            }
+
+            bSuccess = true;
         }
     }
-
-    if ((pKey && (m_pScriptKeyBinds->RemoveKeyFunction(pScriptKey, pLuaMain, bCheckHitState, bHitState, iLuaFunction) ||
-                  pKeyBinds->RemoveFunction(pKey, CClientGame::StaticProcessClientKeyBind, bCheckHitState, bHitState))) ||
-        (pControl && (m_pScriptKeyBinds->RemoveControlFunction(pScriptControl, pLuaMain, bCheckHitState, bHitState, iLuaFunction) ||
-                      pKeyBinds->RemoveControlFunction(pControl, CClientGame::StaticProcessClientControlBind, true, bHitState))))
-    {
-        return true;
-    }
-
-    return false;
+    return bSuccess;
 }
+
 
 bool CStaticFunctionDefinitions::UnbindKey(const char* szKey, const char* szHitState, const char* szCommandName, const char* szResource)
 {
